@@ -109,7 +109,7 @@ Some signals are only meaningful in code. The bare word `requests` in "handle us
 
 ## Deep semantic review (`--deep`)
 
-Opt-in. Does not call a model or the network; it extracts directive **prose** for the reviewing agent to classify against `references/semantic-review.md`. Output lives under `semantic_review` in the JSON, not in the findings list, and is keyed `SEM-NNN`. Candidates carry one or more signal categories:
+Opt-in. Does not call a model or the network; it extracts directive **prose** for the reviewing agent to classify against `semantic-review.md`. Output lives under `semantic_review` in the JSON, not in the findings list, and is keyed `SEM-NNN`. Candidates carry one or more signal categories:
 
 | Signal | What it flags |
 |--------|---------------|

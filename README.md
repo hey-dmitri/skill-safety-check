@@ -23,7 +23,8 @@ The **deep pass** is opt-in with `--deep`. Regexes cannot read intent, so a clea
 Requires Python 3. No dependencies.
 
 ```bash
-git clone https://github.com/<you>/skill-safety-check
+git clone https://github.com/hey-dmitri/skill-safety-check.git
+cd skill-safety-check
 ```
 
 ## Usage
@@ -31,19 +32,19 @@ git clone https://github.com/<you>/skill-safety-check
 Point it at a `SKILL.md`, a skill folder, or a cloned repo.
 
 ```bash
-python3 scripts/scan.py /path/to/skill --format json
+python3 scan.py /path/to/skill --format json
 ```
 
 For human-readable output:
 
 ```bash
-python3 scripts/scan.py /path/to/skill --format text
+python3 scan.py /path/to/skill --format text
 ```
 
 Add the prose review for instruction-heavy skills:
 
 ```bash
-python3 scripts/scan.py /path/to/skill --deep --format text
+python3 scan.py /path/to/skill --deep --format text
 ```
 
 A repo with several `SKILL.md` files is handled automatically: each skill directory is scanned as its own unit, and the credential-plus-network exfiltration check is scoped within each skill, so a credential reference in one skill cannot fuse with a network reference in an unrelated one.
@@ -100,7 +101,7 @@ The repo is also packaged as an agent skill. `SKILL.md` tells an agent how to ac
 
 ## What it checks
 
-The full catalogue, with every finding ID and how to clear it, is in [`references/checks.md`](references/checks.md). The deep-pass rubric is in [`references/semantic-review.md`](references/semantic-review.md). Both are written to be read in a few minutes, so the tool stays glass rather than a black box.
+The full catalogue, with every finding ID and how to clear it, is in [`checks.md`](checks.md). The deep-pass rubric is in [`semantic-review.md`](semantic-review.md). Both are written to be read in a few minutes, so the tool stays glass rather than a black box.
 
 A note on false positives: the noisy capability signals (a network-library name, a bare `api_key` keyword) are gated to code context in prose files. The word "requests" in a sentence is not the `requests` library, and `shopify-api-key` in an HTML example is not credential access. Patterns that are dangerous even as a written instruction, like `curl | bash` or reading `~/.ssh`, are checked everywhere.
 
@@ -124,17 +125,15 @@ The scanner ships the dangerous patterns it looks for as literal strings. Point 
 skill-safety-check/
 ├── README.md                     # this file
 ├── SKILL.md                      # agent-facing protocol
-├── scripts/
-│   └── scan.py                   # the scanner (stdlib only)
-└── references/
-    ├── checks.md                 # finding catalogue
-    └── semantic-review.md        # deep-pass rubric
+├── scan.py                       # the scanner (stdlib only)
+├── checks.md                     # finding catalogue
+└── semantic-review.md            # deep-pass rubric
 ```
 
 ## Contributing
 
-The scanner is one file and the check catalogue maps every finding ID to its meaning, so adding or tuning a check is meant to be a small, reviewable change. If you add a finding, update `references/checks.md` in the same change so the catalogue never drifts from the code.
+The scanner is one file and the check catalogue maps every finding ID to its meaning, so adding or tuning a check is meant to be a small, reviewable change. If you add a finding, update `checks.md` in the same change so the catalogue never drifts from the code.
 
 ## License
 
-MIT. Change it if you prefer something else before you publish.
+Released into the public domain under the [Unlicense](LICENSE).
