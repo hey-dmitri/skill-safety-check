@@ -77,6 +77,7 @@ Some signals are only meaningful in code. The bare word `requests` in "handle us
 | ID | Severity | Meaning |
 |----|----------|---------|
 | `PERSIST` | HIGH | Touches a startup file, scheduler, or agent-config location (`crontab`, `.bashrc`, LaunchAgents, systemd, registry Run keys, `.claude/`, MCP config). Keeps running after the task or reconfigures the agent. |
+| `PERSIST-INSTALL` | NOTE (heuristic) | A README names the skills install directory (`.claude/skills/`, `.cursor/skills/`). That is how a person is told where a skill goes, so it adds nothing to the score and grants no capability. The downgrade is narrow: the file must be a README, the path must stay inside the skills directory (no `..`), and no `SKILL.md` governing that README may point the agent at it. The same path in `SKILL.md`, a script, or any other file is still `PERSIST`, and so is every other agent-config path (`settings.json`, hooks, `CLAUDE.md`, MCP config) wherever it appears. To clear it: nothing to clear, but read the line and confirm it is an install step. |
 
 ## Supply chain
 

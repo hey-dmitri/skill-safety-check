@@ -105,6 +105,8 @@ The full catalogue, with every finding ID and how to clear it, is in [`checks.md
 
 A note on false positives: the noisy capability signals (a network-library name, a bare `api_key` keyword) are gated to code context in prose files. The word "requests" in a sentence is not the `requests` library, and `shopify-api-key` in an HTML example is not credential access. Patterns that are dangerous even as a written instruction, like `curl | bash` or reading `~/.ssh`, are checked everywhere.
 
+One more carve-out: a README that tells a person where to install the skill (`git clone ... ~/.claude/skills/<name>`) is reported as a `PERSIST-INSTALL` note and does not move the verdict. Every skill's install instructions name that directory, so counting it meant a clean skill failed on its own README. The carve-out is narrow on purpose. The same path in `SKILL.md` or a script is still a HIGH `PERSIST` finding, since that is a skill installing a skill. So is any other agent-config path, like `.claude/settings.json`, wherever it appears. And if `SKILL.md` tells the agent to read the README, the README is treated as agent instructions and the carve-out is off.
+
 ## Limits
 
 Read these before trusting a clean result.
@@ -127,12 +129,13 @@ skill-safety-check/
 ├── SKILL.md                      # agent-facing protocol
 ├── scan.py                       # the scanner (stdlib only)
 ├── checks.md                     # finding catalogue
-└── semantic-review.md            # deep-pass rubric
+├── semantic-review.md            # deep-pass rubric
+└── tests/test_scan.py            # regression tests (stdlib unittest)
 ```
 
 ## Contributing
 
-The scanner is one file and the check catalogue maps every finding ID to its meaning, so adding or tuning a check is meant to be a small, reviewable change. If you add a finding, update `checks.md` in the same change so the catalogue never drifts from the code.
+The scanner is one file and the check catalogue maps every finding ID to its meaning, so adding or tuning a check is meant to be a small, reviewable change. If you add a finding, update `checks.md` in the same change so the catalogue never drifts from the code. Run `python3 -m unittest discover -s tests` before you send it.
 
 ## License
 

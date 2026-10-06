@@ -326,19 +326,43 @@ PLACEHOLDER_RE = re.compile(
 
 PERSIST_PATTERNS = [
     r"crontab|/etc/cron|/var/spool/cron",
-    r"\.bashrc|\.zshrc|\.bash_profile|\.profile|\.zprofile",
+    # Shell startup dotfiles. The lookbehind and word boundary keep a property
+    # access such as `spending.profiles` or `user.profile` from matching.
+    r"(?<![\w)\]])\.(?:bashrc|zshrc|bash_profile|profile|zprofile)\b",
     r"LaunchAgents|LaunchDaemons|/Library/LaunchDaemons",
     r"/etc/systemd|\.config/systemd",
     r"HKEY_|reg\s+add|CurrentVersion\\\\Run",
     r"\.claude/|claude_desktop_config|\.cursor/|mcp[_-]?config",
 ]
 
+# The standard skill install directory. A README telling a HUMAN where to put the
+# skill ("git clone ... ~/.claude/skills/<name>") is how every skill is installed,
+# not a persistence attempt. It is downgraded to a NOTE only when all of these hold:
+#   1. the file is a README (never SKILL.md, a script, or any other file),
+#   2. the path stays inside the skills directory (no ".." segment), and
+#   3. no SKILL.md that governs the README tells the agent to read it.
+# Everything else under an agent-config directory (settings, hooks, CLAUDE.md,
+# MCP config) stays HIGH everywhere, and so does the skills directory itself
+# when a SKILL.md or script reaches for it: that is a skill installing a skill.
+INSTALL_DIR_RE = re.compile(r"\.(?:claude|cursor)/skills(?![\w-])(/[^\s`'\"<>)\]]*)?")
+README_NAME_RE = re.compile(r"^readme(\.(md|markdown|mdx|txt|rst))?$", re.I)
+README_REF_RE = re.compile(r"\breadme\b", re.I)
+
+
+def is_install_reference(text, pos):
+    """True when the match at `pos` is a plain path into the skills install directory."""
+    m = INSTALL_DIR_RE.match(text, pos)
+    if not m:
+        return False
+    return ".." not in (m.group(1) or "")
+
+
 URL_RE = re.compile(r"https?://([^\s/'\"]+)")
 SHORTENERS = {"bit.ly", "t.co", "tinyurl.com", "goo.gl", "ow.ly", "is.gd", "buff.ly", "cutt.ly"}
 IP_HOST_RE = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
 
 
-def scan_text_signals(rel, text, ext, out, caps):
+def scan_text_signals(rel, text, ext, out, caps, install_doc=False):
     mask = build_code_mask(text, ext)
 
     # Remote exec: dangerous as code AND as a prose instruction -> scan everywhere.
@@ -401,6 +425,16 @@ def scan_text_signals(rel, text, ext, out, caps):
     # Persistence: dangerous as instruction or code -> scan everywhere.
     for pat in PERSIST_PATTERNS:
         for m in re.finditer(pat, text, re.I):
+            if install_doc and is_install_reference(text, m.start()):
+                out.append(Finding(
+                    "PERSIST-INSTALL", "persistence", "NOTE", rel, line_of(text, m.start()),
+                    INSTALL_DIR_RE.match(text, m.start()).group(0),
+                    "A README names the skills install directory. That is the normal way to tell a person where a "
+                    "skill goes, so it does not count against the verdict. It would count if SKILL.md or a script "
+                    "did the same, or if SKILL.md told the agent to read this README.",
+                    heuristic=True,
+                ))
+                continue
             caps.add(CAP_PERSIST)
             out.append(Finding(
                 "PERSIST", "persistence", "HIGH", rel, line_of(text, m.start()),
@@ -739,6 +773,40 @@ def bucket_key(path, skill_roots, root):
     return rk if rk != "." else "(skill root)"
 
 
+def readme_is_install_doc(path, skill_roots, skill_text):
+    """A README counts as human-facing install documentation unless a SKILL.md
+    that governs it points the agent at a README. A README inside a skill is
+    governed by that skill; one outside every skill (a repo-root README above
+    several skills) is governed by all of them."""
+    if not README_NAME_RE.match(path.name):
+        return False
+    governing = None
+    for sr in skill_roots:
+        try:
+            path.relative_to(sr)
+        except ValueError:
+            continue
+        if governing is None or len(sr.parts) > len(governing.parts):
+            governing = sr
+    roots = [governing] if governing is not None else skill_roots
+    return not any(README_REF_RE.search(skill_text.get(sr, "")) for sr in roots)
+
+
+def read_skill_texts(skill_roots):
+    texts = {}
+    for sr in skill_roots:
+        parts = []
+        for child in sr.iterdir():
+            if child.is_file() and child.name.lower() == "skill.md":
+                try:
+                    parts.append(child.read_text(encoding="utf-8", errors="replace"))
+                except Exception:
+                    # Unreadable SKILL.md: assume the worst so the README is not downgraded.
+                    parts.append("readme")
+        texts[sr] = "\n".join(parts)
+    return texts
+
+
 def analyze(root, deep=False):
     findings = []
     caps = set()              # global union: capabilities list, REVIEW gating, fallback mismatch
@@ -746,6 +814,7 @@ def analyze(root, deep=False):
     has_executable_script = False
     binary_files = 0
     skill_roots = find_skill_roots(root)
+    skill_text = read_skill_texts(skill_roots)
     semantic_candidates = []
 
     for path, rel in iter_files(root):
@@ -773,7 +842,8 @@ def analyze(root, deep=False):
         check_homoglyphs(rel, text, findings)
         check_injection_text(rel, text, findings)
         check_base64(rel, text, findings)
-        scan_text_signals(rel, text, ext, findings, file_caps)
+        scan_text_signals(rel, text, ext, findings, file_caps,
+                          install_doc=readme_is_install_doc(path, skill_roots, skill_text))
 
         # Type-specific
         if ext == ".py":
